@@ -21,14 +21,14 @@ OOV = True
 NUM_THREAD = 2
 
 EARLY_STOP_EPOCH = None
-EVAL_EPOCH = 20
+EVAL_EPOCH = 10
 MODEL_SAVE_EPOCH = 200
 show_iter_num = 500
 LABEL_SMOOTH = True
 Bi_GRU = True
 VISUALIZE_TRAIN = True
 
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 lr_dis = 1 * 1e-4
 lr_gen = 1 * 1e-4
 lr_rec = 1 * 1e-5
