@@ -25,7 +25,8 @@ def fine(label_list):
     else:
         return label_list
 
-def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_swap, gt_label_swap, title, num_tr=2):
+def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_swap, gt_label_swap, title, num_tr=2,
+                pred_label_tr_imgs=None):
     folder = 'imgs'
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -40,6 +41,9 @@ def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_s
     pred_label = pred_label.cpu().numpy()
     pred_label_swap = torch.topk(pred_label_swap, 1, dim=-1)[1].squeeze(-1) # b,t,83 -> b,t,1 -> b,t
     pred_label_swap = pred_label_swap.cpu().numpy()
+    if pred_label_tr_imgs is not None:
+        pred_label_tr_imgs = torch.topk(pred_label_tr_imgs, 1, dim=-1)[1].squeeze(-1) # b,t,83 -> b,t,1 -> b,t
+        pred_label_tr_imgs = pred_label_tr_imgs.cpu().numpy()
     tr_imgs = tr_imgs[:, :num_tr, :, :]
     outs = list()
     for i in range(batch_size):
@@ -80,7 +84,23 @@ def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_s
         cv2.putText(gt_text_img_swap, gt_text_swap, (5, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
         cv2.putText(pred_text_img, pred_text, (5, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
         cv2.putText(pred_text_img_swap, pred_text_swap, (5, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-        out = np.vstack([src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap, pred_text_img_swap])
+
+        if pred_label_tr_imgs is not None:
+            labeled_src = []
+            for num_tr_img, pred_label in enumerate(pred_label_tr_imgs):
+                pred_tr_text_img = np.zeros_like(tar)
+                pred_tr_text = pred_label[i].tolist()
+                pred_tr_text = fine(pred_tr_text)
+                for j in range(num_tokens):
+                    pred_tr_text = list(filter(lambda x: x != j, pred_tr_text))
+                pred_tr_text = ''.join([index2letter[c - num_tokens] for c in pred_tr_text])
+                cv2.putText(pred_tr_text_img, pred_tr_text, (5, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+                labeled_src.extend([src[num_tr_img*IMG_HEIGHT:(num_tr_img + 1)*IMG_HEIGHT], pred_tr_text_img])
+            out = np.vstack([*labeled_src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap,
+                             pred_text_img_swap])
+        else:
+            out = np.vstack([src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap, pred_text_img_swap])
+
         outs.append(out)
     final_out = np.hstack(outs)
     cv2.imwrite(folder+'/'+title+'.png', final_out)

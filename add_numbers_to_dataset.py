@@ -2,6 +2,7 @@ from collections import Counter
 
 import copy
 
+MAX_CHARS = 10
 
 def main():
     num_test_filename = "../GANwriting/data/train" # TODO: maybe add test and val as well
@@ -29,7 +30,6 @@ def main():
         number_lines = [line for line in ntf.readlines() if any(char.isdigit() for char in line.split(",")[1])]
     cleansed_number_lines = [line.rstrip().split(",") for line in number_lines]
 
-    MAX_CHARS=10
     cleansed_number_lines = [(a, b) for a, b in cleansed_number_lines if len(b) <= MAX_CHARS]
 
     # migrate to format [wid,filename word]

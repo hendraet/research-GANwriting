@@ -1,9 +1,15 @@
+import json
+
 import os
+import torch
 import torch.utils.data as D
 import random
 import string
 import cv2
 import numpy as np
+from PIL import Image
+from torchvision.transforms import transforms
+
 from pairs_idx_wid_iam import wid2label_tr, wid2label_te
 
 CREATE_PAIRS = False
@@ -25,8 +31,14 @@ text_corpus = 'corpora_english/brown-azAZ.tr'
 with open(text_corpus, 'r') as _f:
     text_corpus = _f.read().split()
 
-src = 'Groundtruth/gan.iam.tr_va.gt.filter27'
-# src = 'Groundtruth/train_with_numbers'
+# TODO: rework
+for i in range(len(text_corpus) // 2):
+    length = random.randint(1, 4)
+    num = ''.join(random.choices(string.digits, k=length))
+    text_corpus.append(num)
+
+# src = 'Groundtruth/gan.iam.tr_va.gt.filter27'
+src = 'Groundtruth/train_with_numbers'
 tar = 'Groundtruth/gan.iam.test.gt.filter27'
 
 
@@ -94,12 +106,11 @@ class IAM_words(D.Dataset):
             img, img_width = self.read_image_single(idx)
             label = self.label_padding(' '.join(word[1:]), num_tokens)
 
-            insert_pos = 0 if any(char.isdigit() for char in word[1]) else -1
-            wids.insert(insert_pos, wid)
-            idxs.insert(insert_pos, idx)
-            imgs.insert(insert_pos, img)
-            img_widths.insert(insert_pos, img_width)
-            labels.insert(insert_pos, label)
+            wids.append(wid)
+            idxs.append(idx)
+            imgs.append(img)
+            img_widths.append(img_width)
+            labels.append(label)
 
         if len(list(set(wids))) != 1:
             print('Error! writer id differs')
@@ -188,6 +199,48 @@ class IAM_words(D.Dataset):
         return ll
 
 
+class IAMOnDates(D.Dataset):
+    def __init__(self, json_path, data_dir):
+        self.data_dir = data_dir
+        self.normalize = transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5])  # tan-h norm
+        ])
+
+        with open(json_path, "r") as jf:
+            dataset_description = json.load(jf)
+
+        self.file_label_map = [(os.path.join(data_dir, descr["path"]), descr["string"]) for descr in dataset_description]
+
+    def label_padding(self, labels, num_tokens, output_max_len):
+        new_label_len = []
+        ll = [letter2index[i] for i in labels]
+        new_label_len.append(len(ll) + 2)
+        ll = np.array(ll) + num_tokens
+        ll = list(ll)
+        ll = [tokens['GO_TOKEN']] + ll + [tokens['END_TOKEN']]
+        num = output_max_len - len(ll)
+        if not num == 0:
+            ll.extend([tokens['PAD_TOKEN']] * num)  # replace PAD_TOKEN
+        return ll
+
+    def __getitem__(self, idx):
+        path, real_label = self.file_label_map[idx]
+        img = Image.open(path)
+        img_tensor = self.normalize(img)
+
+        encoded_label = self.label_padding(real_label, num_tokens, OUTPUT_MAX_LEN)
+        encoded_label = torch.tensor(encoded_label).unsqueeze(1)
+
+        return {
+            "image": img_tensor,
+            "label": encoded_label,
+        }
+
+    def __len__(self):
+        return len(self.file_label_map)
+
 def loadData(oov):
     gt_tr = src
     gt_te = tar
@@ -236,7 +289,6 @@ def create_pairs(ddict):
     num = len(ddict.keys())
     label2wid = list(zip(range(num), ddict.keys()))
     print(label2wid)
-
 
 if __name__ == '__main__':
     pass

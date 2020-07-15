@@ -23,6 +23,26 @@ class ConTranModel(nn.Module):
         self.show_iter_num = show_iter_num
         self.oov = oov
 
+    def log_images(self, xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label, batch_size, epoch):
+        num_tr_imgs = 2
+        with torch.no_grad():
+            pred_xt = self.rec(xg, label_xt, img_width=torch.from_numpy(np.array([IMG_WIDTH] * batch_size)))
+            pred_xt_swap = self.rec(xg_swap, label_xt_swap, img_width=torch.from_numpy(np.array([IMG_WIDTH] * batch_size)))
+            pred_tr_imgs = []
+            for i in range(num_tr_imgs):
+                # Widths inside a batch are not sorted. The additional loop prevents additional sorting by
+                # using batches of size one
+                batch = []
+                for img, label, width in zip(tr_img[:, i:i + 1, ...], tr_label[:, i:i + 1, ...].squeeze(),
+                                             tr_img_width[:, i:i + 1, ...].squeeze().cpu()):
+                    batch.append(self.rec(img.unsqueeze(0), label.unsqueeze(0), width.unsqueeze(0)).squeeze())
+                pred_tr_imgs.append(torch.stack(batch))
+            pred_tr_imgs = torch.stack(pred_tr_imgs)
+        write_image(xg, pred_xt, img_xt, label_xt, tr_img, xg_swap, pred_xt_swap, label_xt_swap,
+                    'epoch_' + str(epoch) + '-' + str(self.iter_num), num_tr=num_tr_imgs,
+                    pred_label_tr_imgs=pred_tr_imgs)
+
+    # def forward(self, train_data_list, epoch, mode, cer_func=None, write_images=True):
     def forward(self, train_data_list, epoch, mode, cer_func=None):
         tr_domain, tr_wid, tr_idx, tr_img, tr_img_width, tr_label, img_xt, label_xt, label_xt_swap = train_data_list
         tr_wid = tr_wid.to(gpu)
@@ -43,6 +63,16 @@ class ConTranModel(nn.Module):
             l_rec_tr = crit(log_softmax(pred_xt_tr.reshape(-1,vocab_size)), tr_label_rec2.reshape(-1))
             cer_func.add(pred_xt_tr, tr_label_rec2)
             l_rec_tr.backward()
+
+            # TODO: remove after testing
+            # self.iter_num += 1
+            # '''write images'''
+            # if write_images and self.iter_num % self.show_iter_num == 0:
+            #     xg = torch.zeros_like(img_xt)
+            #     xg_swap = torch.zeros_like(img_xt)
+            #     self.log_images(xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label,
+            #                     batch_size, epoch)
+
             return l_rec_tr
 
         elif mode =='cla_update':
@@ -124,10 +154,8 @@ class ConTranModel(nn.Module):
             l_total = l_real + l_fake
             '''write images'''
             if self.iter_num % self.show_iter_num == 0:
-                with torch.no_grad():
-                    pred_xt = self.rec(xg, label_xt, img_width=torch.from_numpy(np.array([IMG_WIDTH]*batch_size)))
-                    pred_xt_swap = self.rec(xg_swap, label_xt_swap, img_width=torch.from_numpy(np.array([IMG_WIDTH]*batch_size)))
-                write_image(xg, pred_xt, img_xt, label_xt, tr_img, xg_swap, pred_xt_swap, label_xt_swap, 'epoch_'+str(epoch)+'-'+str(self.iter_num))
+                    self.log_images(xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label,
+                                    batch_size, epoch)
             return l_total
 
         elif mode =='eval':
