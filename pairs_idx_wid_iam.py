@@ -20,5 +20,5 @@ pairs_te = [(0, '537'), (1, '520'), (2, '560'), (3, '599'), (4, '587'), (5, '512
 label2wid_tr = {k:v for k, v in pairs_tr}
 label2wid_te = {k:v for k, v in pairs_te}
 
-wid2label_tr = {v:k for k, v in pairs_tr}
-wid2label_te = {v:k for k, v in pairs_te}
+WID2LABEL_TR = {v:k for k, v in pairs_tr}
+WID2LABEL_TE = {v:k for k, v in pairs_te}

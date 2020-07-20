@@ -22,8 +22,15 @@ class ConTranModel(nn.Module):
         self.iter_num = 0
         self.show_iter_num = show_iter_num
         self.oov = oov
+        self.num_writers = num_writers
 
-    def log_images(self, xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label, batch_size, epoch):
+    def reset_discriminators(self):
+        self.cla = WriterClaModel(self.num_writers).to(gpu)
+        self.dis = DisModel().to(gpu)
+        self.rec = RecModel(pretrain=False).to(gpu)
+
+    def log_images(self, xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label, batch_size,
+                   filename):
         num_tr_imgs = 2
         with torch.no_grad():
             pred_xt = self.rec(xg, label_xt, img_width=torch.from_numpy(np.array([IMG_WIDTH] * batch_size)))
@@ -39,8 +46,9 @@ class ConTranModel(nn.Module):
                 pred_tr_imgs.append(torch.stack(batch))
             pred_tr_imgs = torch.stack(pred_tr_imgs)
         write_image(xg, pred_xt, img_xt, label_xt, tr_img, xg_swap, pred_xt_swap, label_xt_swap,
-                    'epoch_' + str(epoch) + '-' + str(self.iter_num), num_tr=num_tr_imgs,
+                    filename, num_tr=num_tr_imgs,
                     pred_label_tr_imgs=pred_tr_imgs)
+        return pred_xt, pred_xt_swap
 
     # def forward(self, train_data_list, epoch, mode, cer_func=None, write_images=True):
     def forward(self, train_data_list, epoch, mode, cer_func=None):
@@ -76,7 +84,7 @@ class ConTranModel(nn.Module):
             return l_rec_tr
 
         elif mode =='cla_update':
-            tr_img_rec = tr_img[:, 0:1, :, :] # 8,50,64,200 choose one channel 8,1,64,200
+            tr_img_rec = tr_img[:, 2:3, :, :] # 8,50,64,200 choose one channel 8,1,64,200
             tr_img_rec = tr_img_rec.requires_grad_()
             l_cla_tr = self.cla(tr_img_rec, tr_wid)
             l_cla_tr.backward()
@@ -154,8 +162,9 @@ class ConTranModel(nn.Module):
             l_total = l_real + l_fake
             '''write images'''
             if self.iter_num % self.show_iter_num == 0:
-                    self.log_images(xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label,
-                                    batch_size, epoch)
+                filename = 'epoch_' + str(epoch) + '-' + str(self.iter_num)
+                self.log_images(xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label,
+                                batch_size, filename)
             return l_total
 
         elif mode =='eval':
@@ -169,9 +178,14 @@ class ConTranModel(nn.Module):
                 f_mix_swap = self.gen.mix(f_xs, f_embed_swap)
                 xg_swap = self.gen.decode(f_mix_swap, f_xt_swap)
                 '''write images'''
-                pred_xt = self.rec(xg, label_xt, img_width=torch.from_numpy(np.array([IMG_WIDTH]*batch_size)))
-                pred_xt_swap = self.rec(xg_swap, label_xt_swap, img_width=torch.from_numpy(np.array([IMG_WIDTH]*batch_size)))
-                write_image(xg, pred_xt, img_xt, label_xt, tr_img, xg_swap, pred_xt_swap, label_xt_swap, 'eval_'+str(epoch)+'-'+str(self.iter_num))
+                # TODO: remove
+                # pred_xt = self.rec(xg, label_xt, img_width=torch.from_numpy(np.array([IMG_WIDTH]*batch_size)))
+                # pred_xt_swap = self.rec(xg_swap, label_xt_swap, img_width=torch.from_numpy(np.array([IMG_WIDTH]*batch_size)))
+                # write_image(xg, pred_xt, img_xt, label_xt, tr_img, xg_swap, pred_xt_swap, label_xt_swap, 'eval_'+str(epoch)+'-'+str(self.iter_num))
+
+                filename = 'eval_'+str(epoch)+'-'+str(self.iter_num)
+                pred_xt, pred_xt_swap = self.log_images(xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img,
+                                                        tr_img_width, tr_label, batch_size, filename)
                 self.iter_num += 1
                 '''dis loss'''
                 l_dis_ori = self.dis.calc_gen_loss(xg)

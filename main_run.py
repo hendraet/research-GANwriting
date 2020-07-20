@@ -1,17 +1,20 @@
-import os
-import torch
 import glob
-from torch import optim
-import numpy as np
-import time
+
 import argparse
-from load_data import NUM_WRITERS, IAMOnDates
-from network_tro import ConTranModel
+import numpy as np
+import os
+import time
+import torch
+from torch import optim
+
+from load_data import NUM_WRITERS
 from load_data import loadData as load_data_func
 from loss_tro import CER
+from network_tro import ConTranModel
 
 parser = argparse.ArgumentParser(description='seq2seq net', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('start_epoch', type=int, help='load saved weights from which epoch')
+parser.add_argument('-f', '--model-filename', type=str, default=None, help='load model from different place')
 args = parser.parse_args()
 
 gpu = torch.device('cuda')
@@ -21,7 +24,7 @@ OOV = True
 NUM_THREAD = 2
 
 EARLY_STOP_EPOCH = None
-EVAL_EPOCH = 10
+EVAL_EPOCH = 20
 MODEL_SAVE_EPOCH = 200
 show_iter_num = 500
 LABEL_SMOOTH = True
@@ -35,21 +38,23 @@ lr_rec = 1 * 1e-5
 lr_cla = 1 * 1e-5
 
 CurriculumModelID = args.start_epoch
+MODEL_FILENAME = args.model_filename
 
 
 def all_data_loader():
     data_train, data_test = load_data_func(OOV)
     train_loader = torch.utils.data.DataLoader(data_train, collate_fn=sort_batch, batch_size=BATCH_SIZE, shuffle=True,
-                                               num_workers=NUM_THREAD, pin_memory=True)
+                                               num_workers=NUM_THREAD, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(data_test, collate_fn=sort_batch, batch_size=BATCH_SIZE, shuffle=False,
-                                              num_workers=NUM_THREAD, pin_memory=True)
+                                              num_workers=NUM_THREAD, pin_memory=True, drop_last=True)
     # TODO: remove magic strings
-    date_dataset = IAMOnDates("Groundtruth/iamondb_dates/iamondb_generated_dates_resized_aug2_10k.json",
-                              "Groundtruth/iamondb_dates/")
-    recognizer_loader = torch.utils.data.DataLoader(date_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                                                    num_workers=NUM_THREAD,
-                                                    pin_memory=True)
-    return train_loader, test_loader, recognizer_loader
+    # date_dataset = IAMOnDates("Groundtruth/iamondb_dates/iamondb_generated_dates_resized_aug2_10k.json",
+    #                           "Groundtruth/iamondb_dates/")
+    # recognizer_loader = torch.utils.data.DataLoader(date_dataset, batch_size=BATCH_SIZE, shuffle=True,
+    #                                                 num_workers=NUM_THREAD,
+    #                                                 pin_memory=True)
+    # return train_loader, test_loader, recognizer_loader
+    return train_loader, test_loader, None
 
 
 def sort_batch(batch):
@@ -63,8 +68,7 @@ def sort_batch(batch):
     label_xts = list()
     label_xts_swap = list()
     for domain, wid, idx, img, img_width, label, img_xt, label_xt, label_xt_swap in batch:
-        if wid >= NUM_WRITERS:
-            print('error!')
+        assert wid < NUM_WRITERS, "wid is higher than the number of writers."
         train_domain.append(domain)
         train_wid.append(wid)
         train_idx.append(idx)
@@ -112,25 +116,27 @@ def train(train_loader, model, dis_opt, gen_opt, rec_opt, cla_opt, epoch, recogn
     cer_te2 = CER()
 
     # TODO: handle optional loader properly
-    for train_data_list, opt_samples in zip(train_loader, recognizer_loader):
+    # for train_data_list, opt_samples in zip(train_loader, recognizer_loader):
+    for train_data_list in train_loader:
         '''rec update'''
         rec_opt.zero_grad()
         l_rec_tr = model(train_data_list, epoch, 'rec_update', cer_tr)
         rec_opt.step()
 
+        # TODO: maybe combine into one update step by appending to train_data_list?
         # Additional update step if some samples are necessary for recognizer training but shouldn't/can't be used in
         # generator/classifier training (e.g. because of missing writer ids if samples are generated)
-        images = opt_samples["image"]
-        date_data_list = [torch.zeros((images.shape[0], *sample[0].shape), dtype=sample.dtype)
-                          if isinstance(sample, torch.Tensor)
-                          else np.zeros((images.shape[0], *sample[0].shape), dtype=sample.dtype)
-                          for sample in train_data_list]
-        date_data_list[3] = images
-        date_data_list[5] = opt_samples["label"]
-
-        # l_rec_opt = model(date_data_list, epoch, 'rec_update', cer_tr, write_images=False)
-        l_rec_opt = model(date_data_list, epoch, 'rec_update', cer_tr)
-        rec_opt.step()
+        # images = opt_samples["image"]
+        # date_data_list = [torch.zeros((images.shape[0], *sample[0].shape), dtype=sample.dtype)
+        #                   if isinstance(sample, torch.Tensor)
+        #                   else np.zeros((images.shape[0], *sample[0].shape), dtype=sample.dtype)
+        #                   for sample in train_data_list]
+        # date_data_list[3] = images
+        # date_data_list[5] = opt_samples["label"]
+        #
+        # # l_rec_opt = model(date_data_list, epoch, 'rec_update', cer_tr, write_images=False)
+        # l_rec_opt = model(date_data_list, epoch, 'rec_update', cer_tr)
+        # rec_opt.step()
 
         '''classifier update'''
         cla_opt.zero_grad()
@@ -154,7 +160,7 @@ def train(train_loader, model, dis_opt, gen_opt, rec_opt, cla_opt, epoch, recogn
         loss_l1.append(l_l1.cpu().item())
         loss_rec.append(l_rec.cpu().item())
         loss_rec_tr.append(l_rec_tr.cpu().item())
-        loss_rec_opt.append(l_rec_opt.cpu().item())
+        # loss_rec_opt.append(l_rec_opt.cpu().item())
 
     fl_dis = np.mean(loss_dis)
     fl_dis_tr = np.mean(loss_dis_tr)
@@ -163,7 +169,8 @@ def train(train_loader, model, dis_opt, gen_opt, rec_opt, cla_opt, epoch, recogn
     fl_l1 = np.mean(loss_l1)
     fl_rec = np.mean(loss_rec)
     fl_rec_tr = np.mean(loss_rec_tr)
-    fl_rec_opt = np.mean(loss_rec_opt)
+    # fl_rec_opt = np.mean(loss_rec_opt)
+    fl_rec_opt = 0.0
 
     res_cer_tr = cer_tr.fin()
     res_cer_te = cer_te.fin()
@@ -211,7 +218,13 @@ def test(test_loader, epoch, modelFile_o_model):
 def main(train_loader, test_loader, num_writers, recognizer_loader=None):
     model = ConTranModel(num_writers, show_iter_num, OOV).to(gpu)
 
-    if CurriculumModelID > 0:
+    if MODEL_FILENAME is not None:
+        print('Loading ' + MODEL_FILENAME)
+        model_state_dict = torch.load(MODEL_FILENAME)
+        model.load_state_dict(model_state_dict)
+
+        model.reset_discriminators()
+    elif CurriculumModelID > 0:
         model_file = 'save_weights/contran-' + str(CurriculumModelID) + '.model'
         print('Loading ' + model_file)
         model.load_state_dict(torch.load(model_file))  # load
@@ -273,5 +286,5 @@ def rm_old_model(index):
 if __name__ == '__main__':
     print(time.ctime())
     train_loader, test_loader, recognizer_loader = all_data_loader()
-    main(train_loader, test_loader, NUM_WRITERS, recognizer_loader)
+    main(train_loader, test_loader, NUM_WRITERS)
     print(time.ctime())
