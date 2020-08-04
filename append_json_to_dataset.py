@@ -5,12 +5,14 @@ import json
 
 def main():
     base_data_dir = "/home/hendrik/GANwriting/data"
-    json_data_dir = "iamondb_dates_resized"
-    in_json_filename = os.path.join(base_data_dir, json_data_dir, "iamondb_generated_dates_resized_10k.json")
+    json_data_dir = "iamondb_dates_resized_50k"
+    in_json_filename = os.path.join(base_data_dir, json_data_dir, "iamondb_generated_dates_resized_50k.json")
     orig_data_dir = "iamdb_images_flat"
     in_orig_ds_filename = "Groundtruth/train_with_numbers"
-    out_ds_filename = "Groundtruth/train_with_numbers_n_dates_mixed_no_wid"
+    in_orig_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid"
+    out_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid"
     random_id = False
+    line_limit = 20000
 
     with open(in_orig_ds_filename, "r") as orig_file:
         orig_lines = orig_file.readlines()
@@ -32,6 +34,7 @@ def main():
             new_wid = "-1"
         new_line = f"{new_wid},{os.path.join(json_data_dir, os.path.splitext(sample['path'])[0])} {sample['string']}"
         new_lines.append(new_line)
+    new_lines = new_lines[:line_limit]
 
     merged_lines = new_lines
     for i, line in enumerate(orig_lines):
