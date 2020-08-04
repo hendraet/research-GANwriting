@@ -27,11 +27,12 @@ class Seq2Seq(nn.Module):
         #src = Variable(src)
         out_enc, hidden_enc = self.encoder(src, src_len)
         # t,b,f    layers, b,f
-        global print_shape_flag
-        if print_shape_flag:
-            print('First batch shape: (The shape of batches are not same)')
-            print(out_enc.shape, self.output_max_len)
-            print_shape_flag = False
+        # TODO: doesn't work because GO tag is added -> off by one
+        # global print_shape_flag
+        # if print_shape_flag:
+        #     print('First batch shape: (The shape of batches are not same)')
+        #     print(out_enc.shape, self.output_max_len)
+        #     print_shape_flag = False
 
         output = self.one_hot(tar[0].detach()).requires_grad_()
         if not output.requires_grad:

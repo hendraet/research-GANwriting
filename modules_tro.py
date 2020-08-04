@@ -25,7 +25,7 @@ def fine(label_list):
     else:
         return label_list
 
-def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_swap, gt_label_swap, title, num_tr=2,
+def write_image(xg, pred_label, gt_label, tr_imgs, xg_swap, pred_label_swap, gt_label_swap, title, num_tr=2,
                 pred_label_tr_imgs=None):
     folder = 'imgs'
     if not os.path.exists(folder):
@@ -34,7 +34,7 @@ def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_s
     tr_imgs = tr_imgs.cpu().numpy()
     xg = xg.cpu().numpy()
     xg_swap = xg_swap.cpu().numpy()
-    gt_img = gt_img.cpu().numpy()
+    # gt_img = gt_img.cpu().numpy()
     gt_label = gt_label.cpu().numpy()
     gt_label_swap = gt_label_swap.cpu().numpy()
     pred_label = torch.topk(pred_label, 1, dim=-1)[1].squeeze(-1) # b,t,83 -> b,t,1 -> b,t
@@ -48,11 +48,11 @@ def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_s
     outs = list()
     for i in range(batch_size):
         src = tr_imgs[i].reshape(num_tr*IMG_HEIGHT, -1)
-        gt = gt_img[i].squeeze()
+        # gt = gt_img[i].squeeze()
         tar = xg[i].squeeze()
         tar_swap = xg_swap[i].squeeze()
         src = normalize(src)
-        gt = normalize(gt)
+        # gt = normalize(gt)
         tar = normalize(tar)
         tar_swap = normalize(tar_swap)
         gt_text = gt_label[i].tolist()
@@ -96,10 +96,13 @@ def write_image(xg, pred_label, gt_img, gt_label, tr_imgs, xg_swap, pred_label_s
                 pred_tr_text = ''.join([index2letter[c - num_tokens] for c in pred_tr_text])
                 cv2.putText(pred_tr_text_img, pred_tr_text, (5, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
                 labeled_src.extend([src[num_tr_img*IMG_HEIGHT:(num_tr_img + 1)*IMG_HEIGHT], pred_tr_text_img])
-            out = np.vstack([*labeled_src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap,
+            # out = np.vstack([*labeled_src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap,
+            #                  pred_text_img_swap])
+            out = np.vstack([*labeled_src, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap,
                              pred_text_img_swap])
         else:
-            out = np.vstack([src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap, pred_text_img_swap])
+            # out = np.vstack([src, gt, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap, pred_text_img_swap])
+            out = np.vstack([src, gt_text_img, tar, pred_text_img, gt_text_img_swap, tar_swap, pred_text_img_swap])
 
         outs.append(out)
     final_out = np.hstack(outs)
@@ -204,11 +207,21 @@ class WriterClaModel(nn.Module):
         self.cnn_c = nn.Sequential(*cnn_c)
         self.cross_entropy = nn.CrossEntropyLoss()
 
-    def forward(self, x, y):
+    def forward(self, x):
         feat = self.cnn_f(x)
         out = self.cnn_c(feat) # b,310,1,1
-        loss = self.cross_entropy(out.squeeze(-1).squeeze(-1), y)
+        return out.squeeze(-1).squeeze(-1)
+
+    def get_loss(self, x, y):
+        out = self.forward(x)
+        loss = self.cross_entropy(out, y)
         return loss
+
+# def forward(self, x, y):
+    #     feat = self.cnn_f(x)
+    #     out = self.cnn_c(feat) # b,310,1,1
+    #     loss = self.cross_entropy(out.squeeze(-1).squeeze(-1), y)
+    #     return loss
 
 
 class GenModel_FC(nn.Module):
