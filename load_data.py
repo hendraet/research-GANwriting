@@ -41,16 +41,33 @@ def generate_date():
     return rand_date.strftime(random.choice(date_formats))
 
 
-for i in range(len(text_corpus) // 2):
-    # length = random.randint(1, 4)
-    # num = ''.join(random.choices(string.digits, k=length))
-    # text_corpus.append(num)
+def generate_num():
+    string = str(random.randint(0, 100000))
+    if random.choice([True, False]):
+        # Add 0 padding for some nums without increasing max num length
+        string = string[:-1].zfill(len(string))
+
+    return string
+
+
+dates = []
+for i in range(len(text_corpus) // 4):
     date = generate_date()
-    text_corpus.append(date)
+    dates.append(date)
+text_corpus.extend(dates)
+
+for i in range(len(text_corpus) // 2):
+    num = generate_num()
+    text_corpus.append(num)
+
+# with open("eval_files/words", "w") as outf:
+#     outf.write("\n".join([w for w in text_corpus][:11000]))
+# with open("eval_files/dates", "w") as outf:
+#     outf.write("\n".join(dates))
 
 # src = 'Groundtruth/gan.iam.tr_va.gt.filter27'
 # src = 'Groundtruth/train_with_numbers_n_dates_mixed_random_wid'
-src = 'Groundtruth/train_with_numbers_n_dates_mixed_no_wid'
+src = 'Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid'
 tar = 'Groundtruth/gan.iam.test.gt.filter27'
 
 
@@ -123,7 +140,7 @@ class IAM_words(D.Dataset):
             # discriminator: images 0 & 1
             # recognizer: image 0
             # classifier: image 2
-            insert_pos = 0 if all(char.isdigit() for char in word[1]) else -1
+            insert_pos = 0 if all(char.isdigit() for char in word[1]) and wid != "-1" else -1
             wids.insert(insert_pos, wid)
             idxs.insert(insert_pos, idx)
             imgs.insert(insert_pos, img)
@@ -192,7 +209,9 @@ class IAM_words(D.Dataset):
 
     def read_image_single(self, file_name):
         url = os.path.join(img_base, file_name + '.png')
-        assert os.path.exists(url), "Given images path doesn't seem to exist"
+        if not os.path.exists(url):
+            print(f"{url} doesn't seem to exist")
+            exit(3)
         img = cv2.imread(url, 0)
 
         if img is None:
