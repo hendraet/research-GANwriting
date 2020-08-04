@@ -10,6 +10,8 @@ import os
 
 '''Take turns to open the comments below to run 4 scenario experiments'''
 
+model_file = 'final_model_weights/word_dates_9500.model'
+
 img_base = '/home/hendrik/GANwriting/data/iamdb_images_flat/'
 # target_file = 'Groundtruth/gan.iam.test.gt.filter27'
 target_file = 'eval_files/short_wid_list'
@@ -125,7 +127,7 @@ def test_writer(wid, model):
         f_xs = model.gen.enc_image(imgs)
         for label in labels:
             label = label.unsqueeze(0)
-            f_xt, f_embed = model.gen.enc_text(label)
+            f_xt, f_embed = model.gen.enc_text(label, f_xs.shape)
             f_mix = model.gen.mix(f_xs, f_embed)
             xg = model.gen.decode(f_mix, f_xt)
             pred = model.rec(xg, label, img_width=torch.from_numpy(np.array([IMG_WIDTH])))
@@ -144,7 +146,7 @@ def test_writer(wid, model):
                 xg = xg.cpu().numpy().squeeze()
                 xg = normalize(xg)
                 xg = 255 - xg
-                ret = cv2.imwrite(folder + '/' + wid + '-' + str(num) + '.' + label + '-' + pred + '.png', xg)
+                ret = cv2.imwrite(f'{folder}/{wid}_{str(num).zfill(3)}_{label}_{pred}.png', xg)
                 if not ret:
                     import pdb;
                     pdb.set_trace()
@@ -156,7 +158,6 @@ if __name__ == '__main__':
         data = _f.readlines()
     wids = list(set([i.split(',')[0] for i in data]))
 
-    model_file = 'save_weights/contran-2000.model'
     model = ConTranModel(NUM_WRITERS, 0, True).to(gpu)
     print('Loading ' + model_file)
     model.load_state_dict(torch.load(model_file))  # load
