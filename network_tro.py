@@ -76,19 +76,10 @@ class ConTranModel(nn.Module):
             cer_func.add(pred_xt_tr, tr_label_rec2)
             l_rec_tr.backward()
 
-            # TODO: remove after testing
-            # self.iter_num += 1
-            # '''write images'''
-            # if write_images and self.iter_num % self.show_iter_num == 0:
-            #     xg = torch.zeros_like(img_xt)
-            #     xg_swap = torch.zeros_like(img_xt)
-            #     self.log_images(xg, xg_swap, img_xt, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label,
-            #                     batch_size, epoch)
-
             return l_rec_tr
 
         elif mode == 'cla_update':
-            tr_img_rec = tr_img[:, 2:3, :, :]  # 8,50,64,200 choose one channel 8,1,64,200
+            tr_img_rec = tr_img[:, 0:1, :, :]  # 8,50,64,200 choose one channel 8,1,64,200
             tr_img_rec = tr_img_rec.requires_grad_()
             l_cla_tr = self.cla.get_loss(tr_img_rec, tr_wid)
             l_cla_tr.backward()
@@ -168,8 +159,6 @@ class ConTranModel(nn.Module):
             '''write images'''
             if self.iter_num % self.show_iter_num == 0:
                 filename = 'epoch_' + str(epoch) + '-' + str(self.iter_num)
-                # self.log_images(xg, xg_swap, label_xt, label_xt_swap, tr_img, tr_img_width, tr_label, batch_size,
-                #                 filename)
                 log_img_grid(self.rec, self.cla, xg, label_xt, sample_img1, torch.squeeze(tr_label[:, :1, ...]), tr_wid, filename)
 
             return l_total

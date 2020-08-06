@@ -60,14 +60,9 @@ for i in range(len(text_corpus) // 2):
     num = generate_num()
     text_corpus.append(num)
 
-# with open("eval_files/words", "w") as outf:
-#     outf.write("\n".join([w for w in text_corpus][:11000]))
-# with open("eval_files/dates", "w") as outf:
-#     outf.write("\n".join(dates))
-
 # src = 'Groundtruth/gan.iam.tr_va.gt.filter27'
 # src = 'Groundtruth/train_with_numbers_n_dates_mixed_random_wid'
-src = 'Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid'
+src = 'Groundtruth/train_numbers_gen_numbers_dates_mixed_with_wid'
 tar = 'Groundtruth/gan.iam.test.gt.filter27'
 
 
@@ -135,35 +130,12 @@ class IAM_words(D.Dataset):
             img, img_width = self.read_image_single(idx)
             label = self.label_padding(' '.join(word[1:]), num_tokens)
 
-            # Sort numbers to top so that they are seen by the discriminators even though that dataset is heavily
-            # imablanced and discriminators look only at the top images of each block:
-            # discriminator: images 0 & 1
-            # recognizer: image 0
-            # classifier: image 2
-            insert_pos = 0 if all(char.isdigit() for char in word[1]) and wid != "-1" else -1
+            insert_pos = -1
             wids.insert(insert_pos, wid)
             idxs.insert(insert_pos, idx)
             imgs.insert(insert_pos, img)
             img_widths.insert(insert_pos, img_width)
             labels.insert(insert_pos, label)
-
-        # if possible no generated image should be at the position which the classifier looks at
-        all_wids = sorted(list(set(wids)))
-        classifier_sample_idx = 2
-        if len(wids) > classifier_sample_idx and wids[classifier_sample_idx] == "-1" and len(all_wids) > 1:
-            idx = wids.index(all_wids[1])
-            wids[classifier_sample_idx], wids[idx] = wids[idx], wids[classifier_sample_idx]
-            idxs[classifier_sample_idx], idxs[idx] = idxs[idx], idxs[classifier_sample_idx]
-            imgs[classifier_sample_idx], imgs[idx] = imgs[idx], imgs[classifier_sample_idx]
-            img_widths[classifier_sample_idx], img_widths[idx] = img_widths[idx], img_widths[classifier_sample_idx]
-            labels[classifier_sample_idx], labels[idx] = labels[idx], labels[classifier_sample_idx]
-
-        # correct samples without proper wid
-        # wids = [wid if wid != "-1" else all_wids[1] for wid in wids]
-        #
-        # if len(list(set(wids))) > 1:
-        #     print('Error! writer ids differ')
-        #     exit()
 
         final_wid = wid_idx_num
         num_imgs = len(imgs)
@@ -251,64 +223,15 @@ class IAM_words(D.Dataset):
         return ll
 
 
-# class IAMOnDates(D.Dataset):
-#     def __init__(self, json_path, data_dir):
-#         self.data_dir = data_dir
-#         self.normalize = transforms.Compose([
-#             transforms.Grayscale(num_output_channels=1),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=[0.5], std=[0.5])  # tan-h norm
-#         ])
-#
-#         with open(json_path, "r") as jf:
-#             dataset_description = json.load(jf)
-#
-#         self.file_label_map = [(os.path.join(data_dir, descr["path"]), descr["string"]) for descr in
-#                                dataset_description]
-#
-#     def label_padding(self, labels, num_tokens, output_max_len):
-#         new_label_len = []
-#         ll = [letter2index[i] for i in labels]
-#         new_label_len.append(len(ll) + 2)
-#         ll = np.array(ll) + num_tokens
-#         ll = list(ll)
-#         ll = [tokens['GO_TOKEN']] + ll + [tokens['END_TOKEN']]
-#         num = output_max_len - len(ll)
-#         if not num == 0:
-#             ll.extend([tokens['PAD_TOKEN']] * num)  # replace PAD_TOKEN
-#         return ll
-#
-#     def __getitem__(self, idx):
-#         path, real_label = self.file_label_map[idx]
-#         img = Image.open(path)
-#         img_tensor = self.normalize(img)
-#
-#         encoded_label = self.label_padding(real_label, num_tokens, OUTPUT_MAX_LEN)
-#         encoded_label = torch.tensor(encoded_label).unsqueeze(1)
-#
-#         return {
-#             "image": img_tensor,
-#             "label": encoded_label,
-#         }
-#
-#     def __len__(self):
-#         return len(self.file_label_map)
-
-
 def get_dict(groundtruth, wid_mapping):
     with open(groundtruth, 'r') as f:
         lines = f.readlines()
 
     lines = [line.strip().split(' ') for line in lines]
     writer_id_dict = dict()
-    samples_wo_writer_id = []
     for line in lines:
         writer_id = line[0].split(',')[0]
-        # generated samples that don't have an actual writer (because they are a mixture of single chars) are
-        # flagged with -1
-        if writer_id == "-1":
-            samples_wo_writer_id.append(line)
-        elif writer_id not in writer_id_dict.keys():
+        if writer_id not in writer_id_dict.keys():
             writer_id_dict[writer_id] = [line]
         else:
             writer_id_dict[writer_id].append(line)
@@ -317,8 +240,6 @@ def get_dict(groundtruth, wid_mapping):
     if CREATE_PAIRS:
         create_pairs(writer_id_dict)
 
-    num_samples_with_writer_id = len(lines) - len(samples_wo_writer_id)
-    num_samples_wo_writer_id = len(samples_wo_writer_id)
     for writer_id, lines in writer_id_dict.items():
         # workaround for new writers so I don't have to edit this beast of a dict every time, I change the dataset
         if writer_id not in wid_mapping:
@@ -326,12 +247,6 @@ def get_dict(groundtruth, wid_mapping):
 
         # if there are generated samples add them to each writer id proportionally to number of actual samples
         additional_samples = []
-        if len(samples_wo_writer_id) > 0:
-            proportional_slice_end = int(num_samples_wo_writer_id * (len(lines) / num_samples_with_writer_id))
-            additional_samples = samples_wo_writer_id[:proportional_slice_end]
-            # additional_samples = [[f"{writer_id},{wid_path.split(',')[1]}", label] for wid_path, label in additional_samples]
-            samples_wo_writer_id = samples_wo_writer_id[proportional_slice_end:]
-
         normalised_writer_id_dict[wid_mapping[writer_id]] = lines + additional_samples
 
     return normalised_writer_id_dict
@@ -343,22 +258,6 @@ def loadData(oov):
 
     new_train_dict = get_dict(groundtruth_train, WID2LABEL_TR)
     new_test_dict = get_dict(groundtruth_test, WID2LABEL_TE)
-
-    # with open(groundtruth_test, 'r') as f_te:
-    #     data_te = f_te.readlines()
-    #     data_te = [i.strip().split(' ') for i in data_te]
-    #     te_dict = dict()
-    #     for i in data_te:
-    #         wid = i[0].split(',')[0]
-    #         if wid not in te_dict.keys():
-    #             te_dict[wid] = [i]
-    #         else:
-    #             te_dict[wid].append(i)
-    #     new_te_dict = dict()
-    #     if CREATE_PAIRS:
-    #         create_pairs(te_dict)
-    #     for k in te_dict.keys():
-    #         new_te_dict[wid2label_te[k]] = te_dict[k]
 
     data_train = IAM_words(new_train_dict, oov)
     data_test = IAM_words(new_test_dict, oov)

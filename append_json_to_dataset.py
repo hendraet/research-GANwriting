@@ -5,13 +5,13 @@ import json
 
 def main():
     base_data_dir = "/home/hendrik/GANwriting/data"
-    json_data_dir = "iamondb_dates_resized_50k"
-    in_json_filename = os.path.join(base_data_dir, json_data_dir, "iamondb_generated_dates_resized_50k.json")
+    json_data_dir = "iamondb_generated_nums_dates_20k"
+    in_json_filename = os.path.join(base_data_dir, json_data_dir, "iamondb_generated_nums_dates_20k.json")
     orig_data_dir = "iamdb_images_flat"
     in_orig_ds_filename = "Groundtruth/train_with_numbers"
-    in_orig_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid"
-    out_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid"
-    random_id = False
+    # in_orig_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid"
+    out_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_with_wid"
+    wid_generation_method = "from_path"  # choose from ["random", "from_path", "static"]
     line_limit = 20000
 
     with open(in_orig_ds_filename, "r") as orig_file:
@@ -28,10 +28,16 @@ def main():
     #   - all could be working because data is online data, so some style info is missing anyways
     #   - best would probably to map chars to actual writers and take one of the actual writers?
     for running_wid, sample in enumerate(json_ds):
-        if random_id:
+        if wid_generation_method == "random":
             new_wid = str(highest_wid + running_wid // 50)
-        else:
+        elif wid_generation_method == "static":
             new_wid = "-1"
+        elif wid_generation_method == "from_path":
+            filename = os.path.splitext(os.path.basename(sample['path']))[0]
+            new_wid = filename.split("_")[1]
+        else:
+            assert False, f"{wid_generation_method} is an unknown generation method"
+
         new_line = f"{new_wid},{os.path.join(json_data_dir, os.path.splitext(sample['path'])[0])} {sample['string']}"
         new_lines.append(new_line)
     new_lines = new_lines[:line_limit]

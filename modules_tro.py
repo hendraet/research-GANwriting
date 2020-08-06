@@ -217,12 +217,6 @@ class WriterClaModel(nn.Module):
         loss = self.cross_entropy(out, y)
         return loss
 
-# def forward(self, x, y):
-    #     feat = self.cnn_f(x)
-    #     out = self.cnn_c(feat) # b,310,1,1
-    #     loss = self.cross_entropy(out.squeeze(-1).squeeze(-1), y)
-    #     return loss
-
 
 class GenModel_FC(nn.Module):
     def __init__(self, text_max_len):

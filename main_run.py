@@ -47,13 +47,6 @@ def all_data_loader():
                                                num_workers=NUM_THREAD, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(data_test, collate_fn=sort_batch, batch_size=BATCH_SIZE, shuffle=False,
                                               num_workers=NUM_THREAD, pin_memory=True, drop_last=True)
-    # TODO: remove magic strings
-    # date_dataset = IAMOnDates("Groundtruth/iamondb_dates/iamondb_generated_dates_resized_aug2_10k.json",
-    #                           "Groundtruth/iamondb_dates/")
-    # recognizer_loader = torch.utils.data.DataLoader(date_dataset, batch_size=BATCH_SIZE, shuffle=True,
-    #                                                 num_workers=NUM_THREAD,
-    #                                                 pin_memory=True)
-    # return train_loader, test_loader, recognizer_loader
     return train_loader, test_loader, None
 
 
@@ -109,34 +102,16 @@ def train(train_loader, model, dis_opt, gen_opt, rec_opt, cla_opt, epoch, recogn
     loss_l1 = list()
     loss_rec = list()
     loss_rec_tr = list()
-    loss_rec_opt = list()
     time_s = time.time()
     cer_tr = CER()
     cer_te = CER()
     cer_te2 = CER()
 
-    # TODO: handle optional loader properly
-    # for train_data_list, opt_samples in zip(train_loader, recognizer_loader):
     for train_data_list in train_loader:
         '''rec update'''
         rec_opt.zero_grad()
         l_rec_tr = model(train_data_list, epoch, 'rec_update', cer_tr)
         rec_opt.step()
-
-        # TODO: maybe combine into one update step by appending to train_data_list?
-        # Additional update step if some samples are necessary for recognizer training but shouldn't/can't be used in
-        # generator/classifier training (e.g. because of missing writer ids if samples are generated)
-        # images = opt_samples["image"]
-        # date_data_list = [torch.zeros((images.shape[0], *sample[0].shape), dtype=sample.dtype)
-        #                   if isinstance(sample, torch.Tensor)
-        #                   else np.zeros((images.shape[0], *sample[0].shape), dtype=sample.dtype)
-        #                   for sample in train_data_list]
-        # date_data_list[3] = images
-        # date_data_list[5] = opt_samples["label"]
-        #
-        # # l_rec_opt = model(date_data_list, epoch, 'rec_update', cer_tr, write_images=False)
-        # l_rec_opt = model(date_data_list, epoch, 'rec_update', cer_tr)
-        # rec_opt.step()
 
         '''classifier update'''
         cla_opt.zero_grad()
@@ -160,7 +135,6 @@ def train(train_loader, model, dis_opt, gen_opt, rec_opt, cla_opt, epoch, recogn
         loss_l1.append(l_l1.cpu().item())
         loss_rec.append(l_rec.cpu().item())
         loss_rec_tr.append(l_rec_tr.cpu().item())
-        # loss_rec_opt.append(l_rec_opt.cpu().item())
 
     fl_dis = np.mean(loss_dis)
     fl_dis_tr = np.mean(loss_dis_tr)
@@ -169,14 +143,11 @@ def train(train_loader, model, dis_opt, gen_opt, rec_opt, cla_opt, epoch, recogn
     fl_l1 = np.mean(loss_l1)
     fl_rec = np.mean(loss_rec)
     fl_rec_tr = np.mean(loss_rec_tr)
-    # fl_rec_opt = np.mean(loss_rec_opt)
     fl_rec_opt = 0.0
 
     res_cer_tr = cer_tr.fin()
     res_cer_te = cer_te.fin()
-    # res_cer_te = 1
     res_cer_te2 = cer_te2.fin()
-    # res_cer_te2 = 1
     print(
         'epo%d <tr>-<gen>: l_dis=%.2f-%.2f, l_cla=%.2f-%.2f, l_rec=%.2f-%.2f, l_rec_opt=%.2f l1=%.2f, cer=%.2f-%.2f-%.2f, time=%.1f' % (
         epoch, fl_dis_tr, fl_dis, fl_cla_tr, fl_cla, fl_rec_tr, fl_rec, fl_rec_opt, fl_l1, res_cer_tr, res_cer_te, res_cer_te2,
