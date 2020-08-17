@@ -63,6 +63,7 @@ for i in range(len(text_corpus) // 2):
 # src = 'Groundtruth/gan.iam.tr_va.gt.filter27'
 # src = 'Groundtruth/train_with_numbers_n_dates_mixed_random_wid'
 src = 'Groundtruth/train_numbers_gen_numbers_dates_mixed_with_wid'
+# src = 'Groundtruth/train_gen_numbers_dates_only_with_wid'
 tar = 'Groundtruth/gan.iam.test.gt.filter27'
 
 
@@ -248,6 +249,18 @@ def get_dict(groundtruth, wid_mapping):
         # if there are generated samples add them to each writer id proportionally to number of actual samples
         additional_samples = []
         normalised_writer_id_dict[wid_mapping[writer_id]] = lines + additional_samples
+
+    # TODO: this will probably break evaluation if there are different writers in that dataset and they are
+    #  normalised the same way
+    # renormalise wids if they don't start at 000 or are not continuous
+    all_wids = normalised_writer_id_dict.keys()
+    smallest_wid = int(min(all_wids))
+    if '000' not in all_wids or sorted(all_wids) != list(range(smallest_wid, int(max(all_wids)) + 1)):
+        renormalised_wid_id_dict = {}
+        for wid in all_wids:
+            new_wid = int(wid) - smallest_wid
+            renormalised_wid_id_dict[new_wid] = normalised_writer_id_dict[wid]
+        return renormalised_wid_id_dict
 
     return normalised_writer_id_dict
 

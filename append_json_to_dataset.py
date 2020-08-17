@@ -10,7 +10,7 @@ def main():
     orig_data_dir = "iamdb_images_flat"
     in_orig_ds_filename = "Groundtruth/train_with_numbers"
     # in_orig_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_no_wid"
-    out_ds_filename = "Groundtruth/train_numbers_gen_numbers_dates_mixed_with_wid"
+    out_ds_filename = "Groundtruth/train_gen_numbers_dates_only_with_wid"
     wid_generation_method = "from_path"  # choose from ["random", "from_path", "static"]
     line_limit = 20000
 
@@ -18,6 +18,10 @@ def main():
         orig_lines = orig_file.readlines()
 
     highest_wid = int(max([line.split(",")[0] for line in orig_lines])) + 1
+
+    # TODO --------------------------------------------------
+    orig_lines = []
+    highest_wid = 0
 
     with open(in_json_filename, "r") as in_json:
         json_ds = json.load(in_json)

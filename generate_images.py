@@ -14,7 +14,11 @@ from network_tro import ConTranModel
 
 def read_image(file_name):
     url = file_name + ".png"
+    if not os.path.exists(url):
+        print("Url doesn't exist:", url)
     img = cv2.imread(url, 0)
+    if img is None:
+        print("Img is broken:", url)
 
     rate = float(IMG_HEIGHT) / img.shape[0]
     img = cv2.resize(img, (int(img.shape[1] * rate) + 1, IMG_HEIGHT),
@@ -108,15 +112,16 @@ def test_writer(imgs, wid, label, model, out_dir):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--model-file", type=str, default="final_model_weights/word_dates_9500.model",
+    parser.add_argument("-m", "--model-file", type=str,
+                        default="final_model_weights/word_dates_nums_styled_ds_pretrained_3000.model",
                         help="path of the pretrained model")
-    parser.add_argument("-i", "--img-dir", type=str, default="/home/hendrik/GANwriting/data/iamdb_images_flat/",
+    parser.add_argument("-i", "--img-dir", type=str, default="/home/hendrik/GANwriting/data/",
                         help="directory of the style images")
     parser.add_argument("-w", "--wid-file", type=str, default="eval_files/short_wid_list",
                         help="file that contains writer ids (format is the same as for train and test files)")
-    parser.add_argument("-l", "--label-files", nargs="+", type= str, default= ["eval_files/dates_short"],
-                        help="files that contain possible lables for generation")
-    parser.add_argument("-o", "--out-dir", type=str, default="eval_files/date_imgs/",
+    parser.add_argument("-l", "--label-files", nargs="+", type= str, default= ["eval_files/mixed_words_dates_nums"],
+                        help="files that contain possible labels for generation")
+    parser.add_argument("-o", "--out-dir", type=str, default="eval_files/mixed_imgs_3000/",
                         help="dir where the generated images should be saved")
     parser.add_argument("-n", "--num-images", type=int, default=100,
                         help="number of images that should be generated")
