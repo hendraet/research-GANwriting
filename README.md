@@ -49,6 +49,8 @@ If you have already trained a model, you can use that model for further training
 
 In this case, `[id]` should be the id of the model in the `save_weights` directory, e.g. 1000 if you have a model named `contran-1000.model`.
 
+A pretrained model can be found [here](https://owncloud.hpi.de/s/bmHZdxiMX5ujv21).
+However, it only works for words of length 7, so the `MAX_CHARS` variable in `load_data.py` has to be set accordingly.
 
 ## How to test it?
 
